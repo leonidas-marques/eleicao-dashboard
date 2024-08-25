@@ -12,137 +12,77 @@ def clean_column(df, column_name):
     df[column_name] = pd.to_numeric(df[column_name], errors='coerce')
     return df
 
-# Função para gerenciar o valor de pitch
 
+# Defina o caminho dos arquivos Excel/CSV aqui
+file_path1 = "./data/eleitorado_local_votacao_2020_geografica.xls"
+file_path2 = "./data/votação_secão_2020 vereador.csv"
 
-def manage_pitch():
-    if 'pitch' not in st.session_state:
-        st.session_state.pitch = 45  # Valor inicial do pitch
+# Leitura dos arquivos
+df1 = pd.read_excel(file_path1)
+df2 = pd.read_csv(file_path2, sep=';')
 
-    col1, col2, col3 = st.sidebar.columns([1, 3, 1])
+# Limpeza dos dados
+df1 = clean_column(df1, 'LONGITUDE')
+df1 = clean_column(df1, 'LATITUDE')
+df2 = clean_column(df2, 'QT_VOTOS')
 
-    with col1:
-        if st.button('−', key='decrement_pitch'):
-            st.session_state.pitch = max(0, st.session_state.pitch - 1)
+# Renomear colunas em df1
+df1.rename(columns={
+    'LONGITUDE': 'Longitude',
+    'LATITUDE': 'Latitude',
+    'QT_ELEITOR': 'Quantidade_Eleitores'
+}, inplace=True)
 
-    with col2:
-        st.session_state.pitch = st.slider(
-            "Inclinação (Pitch)", min_value=0, max_value=90, value=st.session_state.pitch)
+# Agrupar votos por local de votação em df2
+df2_grouped = df2.groupby('NR_LOCAL_VOTACAO', as_index=False).agg({
+    'QT_VOTOS': 'sum'
+})
 
-    with col3:
-        if st.button('＋', key='increment_pitch'):
-            st.session_state.pitch = min(90, st.session_state.pitch + 1)
+# Unir df1 com df2_grouped
+df1 = df1.merge(df2_grouped, left_on='NR_LOCAL_V',
+                right_on='NR_LOCAL_VOTACAO', how='left')
 
-# Função para gerenciar o valor de zoom
+# Agrupar por localização e somar os eleitores
+df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_LOCAL_V', 'NR_LOCAL_V', 'DS_TIPO_LO'], as_index=False).agg({
+    'Quantidade_Eleitores': 'sum',
+    'QT_VOTOS': 'sum'
+})
 
+st.write('Agrupar por localização e somar os eleitores')
+st.write(df1_grouped)
 
-def manage_zoom():
-    if 'zoom' not in st.session_state:
-        st.session_state.zoom = 12  # Valor inicial do zoom
+# Criação do mapa com pydeck
+st.title("Mapa de Locais de Votação")
 
-    col1, col2, col3 = st.sidebar.columns([1, 3, 1])
+# Configurações do mapa
+map_layers = [
+    pdk.Layer(
+        "ColumnLayer",
+        data=df1_grouped,
+        get_position=["Longitude", "Latitude"],
+        # Altura da coluna baseada na quantidade de votos
+        get_elevation="QT_VOTOS",
+        elevation_scale=0.1,
+        get_color=[0, 128, 255, 200],  # Cor das colunas de votos
+        radius=50,
+        pickable=True,
+        extruded=True,
+    )
+]
 
-    with col1:
-        if st.button('−', key='decrement_zoom'):
-            st.session_state.zoom = max(1, st.session_state.zoom - 1)
+view_state = pdk.ViewState(
+    latitude=df1['Latitude'].mean(),
+    longitude=df1['Longitude'].mean(),
+    zoom=11,
+    pitch=50,  # Ajuste o ângulo para melhor visualização
+)
 
-    with col2:
-        st.session_state.zoom = st.slider(
-            "Nível de Zoom", min_value=1, max_value=20, value=st.session_state.zoom)
-
-    with col3:
-        if st.button('＋', key='increment_zoom'):
-            st.session_state.zoom = min(20, st.session_state.zoom + 1)
-
-
-# Sidebar para upload do arquivo Excel e configurações do mapa
-st.sidebar.header("Configurações do Mapa")
-uploaded_file = st.sidebar.file_uploader(
-    "Escolha um arquivo Excel", type=["xls", "xlsx"])
-
-st.sidebar.markdown("<hr>", unsafe_allow_html=True)
-
-# Barra de pesquisa para o campo "Local"
-if uploaded_file is not None:
-    try:
-        manage_pitch()
-        manage_zoom()
-        color = st.sidebar.color_picker("Cor dos Marcadores", "#0000FF")
-        df = pd.read_excel(uploaded_file)
-
-        # st.write("Dados Importados:", df)
-
-        required_columns = ["LONGITUDE", "LATITUDE",
-                            "NM_LOCAL_V", "NM_BAIRRO", "QT_ELEITOR"]
-        if all(col in df.columns for col in required_columns):
-            df.rename(columns={
-                "LONGITUDE": "Longitude",
-                "LATITUDE": "Latitude",
-                "NM_LOCAL_V": "Local",
-                "NM_BAIRRO": "Bairro",
-                "QT_ELEITOR": "Eleitores"
-            }, inplace=True)
-
-            df = clean_column(df, 'Longitude')
-            df = clean_column(df, 'Latitude')
-
-            unique_locations = df['Local'].dropna().unique()
-            selected_local = st.sidebar.selectbox("Selecionar Local", options=[
-                                                  ""] + list(unique_locations))
-
-            if selected_local:
-                df = df[df['Local'] == selected_local]
-
-            df.dropna(subset=['Longitude', 'Latitude'], inplace=True)
-
-            if not df.empty:
-                # Criar a camada 3D
-                layer = pdk.Layer(
-                    "ColumnLayer",
-                    data=df,
-                    get_position=["Longitude", "Latitude"],
-                    get_elevation="Eleitores",
-                    radius=10,
-                    elevation_scale=1,
-                    get_fill_color=[
-                        int(color[1:3], 16),
-                        int(color[3:5], 16),
-                        int(color[5:7], 16),
-                        180
-                    ],
-                    pickable=True,
-                    auto_highlight=True,
-                    opacity=0.8
-                )
-
-                view_state = pdk.ViewState(
-                    latitude=df['Latitude'].mean(),
-                    longitude=df['Longitude'].mean(),
-                    zoom=st.session_state.zoom,
-                    pitch=st.session_state.pitch
-                )
-
-                deck_map = pdk.Deck(
-                    layers=[layer],
-                    initial_view_state=view_state,
-                    tooltip={
-                        "html": "<b>Local:</b> {Local}<br><b>Bairro:</b> {Bairro}<br><b>Eleitores:</b> {Eleitores}",
-                        "style": {"color": "white"}
-                    }
-                )
-
-                st.pydeck_chart(deck_map)
-
-                # Adicionar gráfico de barras de votos por bairro
-                bairro_counts = df.groupby(
-                    'Bairro')['Eleitores'].sum().reset_index()
-                st.write("Quantidade de Votos por Bairro:")
-                st.bar_chart(bairro_counts.set_index('Bairro'))
-            else:
-                st.write("Nenhum dado encontrado para o local selecionado.")
-        else:
-            st.error("O arquivo Excel não contém todas as colunas necessárias.")
-    except Exception as e:
-        st.error(f"Ocorreu um erro ao processar o arquivo: {e}")
-else:
-    st.info("Faça o upload de um arquivo Excel para começar.")
+# Exibir o mapa no Streamlit
+deck = pdk.Deck(
+    layers=map_layers,
+    initial_view_state=view_state,
+    tooltip={
+        "text": "Local: {NM_LOCAL_V}\nTipo: {DS_TIPO_LO}\n Total Eleitores: {Quantidade_Eleitores} \nTotal Votos: {QT_VOTOS}"
+    }
+)
+st.pydeck_chart(deck)

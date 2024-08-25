@@ -1,8 +1,8 @@
-from streamlit_folium import folium_static  # Importação correta
 import streamlit as st
 import pandas as pd
 import folium
 from folium.plugins import MarkerCluster
+from streamlit_folium import st_folium
 
 # Função para limpar e converter dados
 
@@ -50,21 +50,39 @@ df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_LOCAL_V', 'NR_LOCAL_V', 
     'QT_VOTOS': 'sum'
 })
 
-st.write('Agrupar por localização e somar os eleitores')
-st.write(df1_grouped)
+# Sidebar para seleção de local
+st.sidebar.header("Selecione um Local de Votação")
+
+# Adicionar uma opção para "Todos os Locais"
+local_options = ['Todos os Locais'] + \
+    df1_grouped['NM_LOCAL_V'].unique().tolist()
+
+selected_local = st.sidebar.selectbox(
+    "Escolha o Local de Votação",
+    options=local_options
+)
+
+# Filtrar dados com base na seleção
+if selected_local == 'Todos os Locais':
+    filtered_df = df1_grouped
+else:
+    filtered_df = df1_grouped[df1_grouped['NM_LOCAL_V'] == selected_local]
+
+st.write('Dados:')
+st.write(filtered_df)
 
 # Criação do mapa com folium
 st.title("Mapa de Locais de Votação")
 
 # Inicializa o mapa em uma localização central
-m = folium.Map(location=[df1['Latitude'].mean(),
-               df1['Longitude'].mean()], zoom_start=11)
+m = folium.Map(location=[filtered_df['Latitude'].mean(),
+               filtered_df['Longitude'].mean()], zoom_start=11)
 
 # Adiciona um cluster de marcadores ao mapa
 marker_cluster = MarkerCluster().add_to(m)
 
-# Adiciona marcadores para cada local de votação
-for idx, row in df1_grouped.iterrows():
+# Adiciona marcadores para o local selecionado
+for idx, row in filtered_df.iterrows():
     popup_content = f"""
     <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
     <strong>Tipo:</strong> {row['DS_TIPO_LO']}<br>
@@ -77,5 +95,5 @@ for idx, row in df1_grouped.iterrows():
         icon=folium.Icon(color='blue')
     ).add_to(marker_cluster)
 
-# Exibir o mapa no Streamlit
-folium_static(m)
+st_data = st_folium(m, use_container_width=True)
+st.write(st_data.get('last_object_clicked_popup', 'Nenhum objeto clicado'))

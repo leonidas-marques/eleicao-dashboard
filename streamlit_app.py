@@ -1,6 +1,8 @@
+from streamlit_folium import folium_static  # Importação correta
 import streamlit as st
 import pandas as pd
-import pydeck as pdk
+import folium
+from folium.plugins import MarkerCluster
 
 # Função para limpar e converter dados
 
@@ -51,38 +53,29 @@ df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_LOCAL_V', 'NR_LOCAL_V', 
 st.write('Agrupar por localização e somar os eleitores')
 st.write(df1_grouped)
 
-# Criação do mapa com pydeck
+# Criação do mapa com folium
 st.title("Mapa de Locais de Votação")
 
-# Configurações do mapa
-map_layers = [
-    pdk.Layer(
-        "ColumnLayer",
-        data=df1_grouped,
-        get_position=["Longitude", "Latitude"],
-        # Altura da coluna baseada na quantidade de votos
-        get_elevation="QT_VOTOS",
-        elevation_scale=0.1,
-        get_color=[0, 128, 255, 200],  # Cor das colunas de votos
-        radius=50,
-        pickable=True,
-        extruded=True,
-    )
-]
+# Inicializa o mapa em uma localização central
+m = folium.Map(location=[df1['Latitude'].mean(),
+               df1['Longitude'].mean()], zoom_start=11)
 
-view_state = pdk.ViewState(
-    latitude=df1['Latitude'].mean(),
-    longitude=df1['Longitude'].mean(),
-    zoom=11,
-    pitch=50,  # Ajuste o ângulo para melhor visualização
-)
+# Adiciona um cluster de marcadores ao mapa
+marker_cluster = MarkerCluster().add_to(m)
+
+# Adiciona marcadores para cada local de votação
+for idx, row in df1_grouped.iterrows():
+    popup_content = f"""
+    <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
+    <strong>Tipo:</strong> {row['DS_TIPO_LO']}<br>
+    <strong>Total Eleitores:</strong> {row['Quantidade_Eleitores']}<br>
+    <strong>Total Votos:</strong> {row['QT_VOTOS']}
+    """
+    folium.Marker(
+        location=[row['Latitude'], row['Longitude']],
+        popup=folium.Popup(popup_content, max_width=300),
+        icon=folium.Icon(color='blue')
+    ).add_to(marker_cluster)
 
 # Exibir o mapa no Streamlit
-deck = pdk.Deck(
-    layers=map_layers,
-    initial_view_state=view_state,
-    tooltip={
-        "text": "Local: {NM_LOCAL_V}\nTipo: {DS_TIPO_LO}\n Total Eleitores: {Quantidade_Eleitores} \nTotal Votos: {QT_VOTOS}"
-    }
-)
-st.pydeck_chart(deck)
+folium_static(m)

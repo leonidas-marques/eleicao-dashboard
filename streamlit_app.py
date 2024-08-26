@@ -4,6 +4,7 @@ import pandas as pd
 import folium
 from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
+import plotly.express as px  # Importar plotly
 
 # Função para limpar e converter dados
 
@@ -176,3 +177,23 @@ if clicked_object:
 
 else:
     st.write('Selecione um Local para mais detalhes.')
+    
+# Gerar gráfico de barras para a quantidade de votos por bairro
+if selected_vereador != 'Todos os Vereadores':
+    df_vereador_bairro = df1_grouped.groupby('NM_BAIRRO').agg({
+        selected_vereador: 'sum'
+    }).reset_index()
+
+    df_vereador_bairro.rename(columns={selected_vereador: 'Votos'}, inplace=True)
+
+    # Ordenar os bairros pela quantidade de votos
+    df_vereador_bairro = df_vereador_bairro.sort_values(by='Votos', ascending=False)
+
+    # Criar gráfico de barras usando Plotly
+    fig = px.bar(df_vereador_bairro, y='NM_BAIRRO', x='Votos', title=f'Quantidade de Votos por Bairro para {selected_vereador}',
+                 labels={'NM_BAIRRO': 'Bairro', 'Votos': 'Quantidade de Votos'})
+
+    # Mostrar gráfico no Streamlit
+    st.plotly_chart(fig, use_container_width=True)
+    
+# trocar rpor um bar_chart

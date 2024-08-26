@@ -20,11 +20,9 @@ def clean_column(df, column_name):
 file_path1 = "./data/eleitorado_local_votacao_2020_geografica.xls"
 file_path2 = "./data/votação_secão_2020 vereador.csv"
 
-
 # Leitura dos arquivos
 df1 = pd.read_excel(file_path1)
 df2 = pd.read_csv(file_path2, sep=';')
-
 
 # Limpeza dos dados
 df1 = clean_column(df1, 'LONGITUDE')
@@ -47,10 +45,8 @@ df2_grouped = df2.groupby('NR_LOCAL_VOTACAO', as_index=False).agg({
 df1 = df1.merge(df2_grouped, left_on='NR_LOCAL_V',
                 right_on='NR_LOCAL_VOTACAO', how='left')
 
-
-
 # Agrupar por localização e somar os eleitores
-df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_LOCAL_V', 'NR_LOCAL_V', 'DS_TIPO_LO'], as_index=False).agg({
+df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_BAIRRO', 'NM_LOCAL_V', 'NR_LOCAL_V', 'DS_TIPO_LO'], as_index=False).agg({
     'Quantidade_Eleitores': 'sum',
     'QT_VOTOS': 'mean'
 })
@@ -62,16 +58,30 @@ st.sidebar.header("Selecione um Local de Votação")
 local_options = ['Todos os Locais'] + \
     df1_grouped['NM_LOCAL_V'].unique().tolist()
 
+bairro_options = ['Todos os Bairros'] + \
+    df1_grouped['NM_BAIRRO'].unique().tolist()
+
 selected_local = st.sidebar.selectbox(
     "Escolha o Local de Votação",
     options=local_options
 )
+selected_bairro = st.sidebar.selectbox(
+    "Escolha o bairro da Votação",
+    options=bairro_options
+)
 
 # Filtrar dados com base na seleção
-if selected_local == 'Todos os Locais':
+if selected_local == 'Todos os Locais' and selected_bairro == 'Todos os Bairros':
     filtered_df = df1_grouped
-else:
+elif selected_local == 'Todos os Locais':
+    filtered_df = df1_grouped[df1_grouped['NM_BAIRRO'] == selected_bairro]
+elif selected_bairro == 'Todos os Bairros':
     filtered_df = df1_grouped[df1_grouped['NM_LOCAL_V'] == selected_local]
+else:
+    filtered_df = df1_grouped[
+        (df1_grouped['NM_LOCAL_V'] == selected_local) &
+        (df1_grouped['NM_BAIRRO'] == selected_bairro)
+    ]
 
 st.write('Dados:')
 st.write(filtered_df)
@@ -116,11 +126,10 @@ if clicked_object:
         nr_local_v = int(match.group(1))
         print(f'O número do local de votação é: {nr_local_v}')
         # Filtrar o DataFrame df2 para o local de votação desejado
-
         df_vereadores = df2[df2['NR_LOCAL_VOTACAO'] == nr_local_v]
 
         # Agrupar por vereador e somar os votos
-        df_vereadores_grouped = df_vereadores.groupby(['NM_VOTAVEL'], as_index=False).agg({
+        df_vereadores_grouped = df_vereadores.groupby(['NM_VOTAVEL', 'NR_VOTAVEL'], as_index=False).agg({
             'QT_VOTOS': 'sum'
         })
 
@@ -128,9 +137,18 @@ if clicked_object:
         df_vereadores_grouped = df_vereadores_grouped.sort_values(
             by='QT_VOTOS', ascending=False)
 
+        df_vereadores_grouped.rename(columns={
+            'NR_VOTAVEL': 'Número do vereador',
+            'NM_VOTAVEL': 'Nome do vereador',
+            'QT_VOTOS': 'Quantidade de votos'
+        }, inplace=True)
+        
+        df_vereadores_grouped['Número do vereador'] = df_vereadores_grouped['Número do vereador'].astype(str)
+
         # Mostrar os dados
         st.write('Balanço dos Votos dos Vereadores:')
-        st.dataframe(df_vereadores_grouped, use_container_width=True)
+        st.dataframe(df_vereadores_grouped,
+                     use_container_width=True, hide_index=True)
 
     else:
         print('Número do local de votação não encontrado.')

@@ -17,7 +17,7 @@ def clean_column(df, column_name):
 
 
 # Defina o caminho dos arquivos Excel/CSV aqui
-file_path1 = "./data/eleitorado_local_votacao_2020_geografica.xls"
+file_path1 = "./data/eleitorado_local_votacao_2020_geografica.xlsx"
 file_path2 = "./data/votação_secão_2020 vereador.csv"
 
 # Leitura dos arquivos
@@ -96,6 +96,16 @@ m = folium.Map(location=[filtered_df['Latitude'].mean(),
 # Adiciona um cluster de marcadores ao mapa
 marker_cluster = MarkerCluster().add_to(m)
 
+# Função auxiliar para converter valores NaN para inteiros
+
+
+def safe_int_conversion(value):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return 0  # ou qualquer valor padrão que você queira usar
+
+
 # Adiciona marcadores para o local selecionado
 for idx, row in filtered_df.iterrows():
     popup_content = f"""
@@ -103,7 +113,7 @@ for idx, row in filtered_df.iterrows():
     <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
     <strong>Tipo:</strong> {row['DS_TIPO_LO']}<br>
     <strong>Total Eleitores:</strong> {row['Quantidade_Eleitores']}<br>
-    <strong>Total Votos:</strong> {row['QT_VOTOS']}
+    <strong>Total Votos:</strong> {safe_int_conversion(row['QT_VOTOS'])}
     """
     folium.Marker(
         location=[row['Latitude'], row['Longitude']],
@@ -142,8 +152,9 @@ if clicked_object:
             'NM_VOTAVEL': 'Nome do vereador',
             'QT_VOTOS': 'Quantidade de votos'
         }, inplace=True)
-        
-        df_vereadores_grouped['Número do vereador'] = df_vereadores_grouped['Número do vereador'].astype(str)
+
+        df_vereadores_grouped['Número do vereador'] = df_vereadores_grouped['Número do vereador'].astype(
+            str)
 
         # Mostrar os dados
         st.write('Balanço dos Votos dos Vereadores:')

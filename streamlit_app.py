@@ -43,15 +43,16 @@ df2_grouped = df2.groupby('NR_LOCAL_VOTACAO', as_index=False).agg({
     'QT_VOTOS': 'sum'
 })
 
-
 # Unir df1 com df2_grouped
 df1 = df1.merge(df2_grouped, left_on='NR_LOCAL_V',
                 right_on='NR_LOCAL_VOTACAO', how='left')
 
+
+
 # Agrupar por localização e somar os eleitores
 df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_LOCAL_V', 'NR_LOCAL_V', 'DS_TIPO_LO'], as_index=False).agg({
     'Quantidade_Eleitores': 'sum',
-    'QT_VOTOS': 'sum'
+    'QT_VOTOS': 'mean'
 })
 
 # Sidebar para seleção de local

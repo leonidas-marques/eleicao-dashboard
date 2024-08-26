@@ -119,7 +119,7 @@ for idx, row in filtered_df.iterrows():
         popup_content = f"""
         <strong>Seção:</strong> {row['NR_LOCAL_V']}<br>
         <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
-        <strong>{selected_vereador} Votos:</strong> {row[f'{selected_vereador}']}<br>
+        <strong>{selected_vereador} Votos:</strong> {safe_int_conversion(row[f'{selected_vereador}'])}<br>
         """
     else:
         popup_content = f"""

@@ -4,9 +4,7 @@ import pandas as pd
 import folium
 from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
-import plotly.express as px  # Importar plotly
-
-# Função para limpar e converter dados
+import plotly.express as px
 
 
 def clean_column(df, column_name):
@@ -17,42 +15,41 @@ def clean_column(df, column_name):
     return df
 
 
-# Defina o caminho dos arquivos Excel/CSV aqui
 file_path1 = "./data/eleitorado_local_votacao_2020_geografica.xlsx"
 file_path2 = "./data/votação_secão_2020 vereador.csv"
 
-# Leitura dos arquivos
 df1 = pd.read_excel(file_path1)
 df2 = pd.read_csv(file_path2, sep=';')
 
-# Limpeza dos dados
 df1 = clean_column(df1, 'LONGITUDE')
 df1 = clean_column(df1, 'LATITUDE')
 df2 = clean_column(df2, 'QT_VOTOS')
 
-# Renomear colunas em df1
 df1.rename(columns={
     'LONGITUDE': 'Longitude',
     'LATITUDE': 'Latitude',
     'QT_ELEITOR': 'Quantidade_Eleitores'
 }, inplace=True)
 
-# Agrupar votos por local de votação e pivotar em df2
+df2_grouped = df2.groupby('NR_LOCAL_VOTACAO', as_index=False).agg({
+    'QT_VOTOS': 'sum'
+})
+
+df1 = df1.merge(df2_grouped, left_on='NR_LOCAL_V',
+                right_on='NR_LOCAL_VOTACAO', how='left')
+
 df2_pivot = df2.pivot_table(index='NR_LOCAL_VOTACAO', columns='NM_VOTAVEL',
                             values='QT_VOTOS', aggfunc='sum', fill_value=0)
 
-# Unir df1 com df2_pivot
 df1 = df1.merge(df2_pivot, left_on='NR_LOCAL_V',
                 right_on='NR_LOCAL_VOTACAO', how='left')
 
-# Agrupar por localização e somar os eleitores
 df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_BAIRRO', 'NM_LOCAL_V', 'NR_LOCAL_V', 'DS_TIPO_LO'], as_index=False).agg({
     'Quantidade_Eleitores': 'sum',
-    # Agregar votos dos vereadores por média
+    'QT_VOTOS': 'mean',
     **{col: 'mean' for col in df2_pivot.columns}
 })
 
-# Sidebar para seleção de local
 st.sidebar.header("Selecione um Local de Votação")
 
 vereador_options = ['Todos os Vereadores'] + \
@@ -78,7 +75,6 @@ selected_bairro = st.sidebar.selectbox(
     options=bairro_options
 )
 
-# Filtrar dados com base na seleção
 if selected_local == 'Todos os Locais' and selected_bairro == 'Todos os Bairros':
     filtered_df = df1_grouped
 elif selected_local == 'Todos os Locais':
@@ -91,30 +87,21 @@ else:
         (df1_grouped['NM_BAIRRO'] == selected_bairro)
     ]
 
-# st.write('Dados:')
-# st.write(filtered_df)
-
-# Criação do mapa com folium
 st.title("Mapa de Locais de Votação")
 
-# Inicializa o mapa em uma localização central
 m = folium.Map(location=[filtered_df['Latitude'].mean(),
                filtered_df['Longitude'].mean()], zoom_start=11)
 
-# Adiciona um cluster de marcadores ao mapa
 marker_cluster = MarkerCluster().add_to(m)
-
-# Função auxiliar para converter valores NaN para inteiros
 
 
 def safe_int_conversion(value):
     try:
         return int(value)
     except (ValueError, TypeError):
-        return 0  # ou qualquer valor padrão que você queira usar
+        return 0
 
 
-# Adiciona marcadores para o local selecionado
 for idx, row in filtered_df.iterrows():
     if (selected_vereador != 'Todos os Vereadores'):
         popup_content = f"""
@@ -127,7 +114,7 @@ for idx, row in filtered_df.iterrows():
         <strong>Seção:</strong> {row['NR_LOCAL_V']}<br>
         <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
         <strong>Total Eleitores:</strong> {row['Quantidade_Eleitores']}<br>
-        <strong>Total Votos:</strong> {safe_int_conversion(row.iloc[6:].sum())}  <!-- Soma dos votos -->
+        <strong>Total Votos:</strong>{safe_int_conversion(row['QT_VOTOS'])}
         """
     folium.Marker(
         location=[row['Latitude'], row['Longitude']],
@@ -137,24 +124,19 @@ for idx, row in filtered_df.iterrows():
 
 st_data = st_folium(m, use_container_width=True)
 
-# Detecção de clique no mapa
 clicked_object = st_data.get('last_object_clicked_popup', None)
 st.title("Detalhes:")
 if clicked_object:
     st.write(clicked_object)
-    # Buscar o número do local de votação a partir do objeto clicado
     match = re.search(r'Seção: (\d+)', clicked_object)
     if match:
         nr_local_v = int(match.group(1))
-        # Filtrar o DataFrame df2 para o local de votação desejado
         df_vereadores = df2[df2['NR_LOCAL_VOTACAO'] == nr_local_v]
 
-        # Agrupar por vereador e somar os votos
         df_vereadores_grouped = df_vereadores.groupby(['NM_VOTAVEL', 'NR_VOTAVEL'], as_index=False).agg({
             'QT_VOTOS': 'sum'
         })
 
-        # Ordenar por quantidade de votos, se desejado
         df_vereadores_grouped = df_vereadores_grouped.sort_values(
             by='QT_VOTOS', ascending=False)
 
@@ -167,7 +149,6 @@ if clicked_object:
         df_vereadores_grouped['Número do vereador'] = df_vereadores_grouped['Número do vereador'].astype(
             str)
 
-        # Mostrar os dados
         st.write('Balanço dos Votos dos Vereadores:')
         st.dataframe(df_vereadores_grouped,
                      use_container_width=True, hide_index=True)
@@ -177,23 +158,19 @@ if clicked_object:
 
 else:
     st.write('Selecione um Local para mais detalhes.')
-    
-# Gerar gráfico de barras para a quantidade de votos por bairro
+
 if selected_vereador != 'Todos os Vereadores':
     df_vereador_bairro = df1_grouped.groupby('NM_BAIRRO').agg({
         selected_vereador: 'sum'
     }).reset_index()
 
-    df_vereador_bairro.rename(columns={selected_vereador: 'Votos'}, inplace=True)
+    df_vereador_bairro.rename(
+        columns={selected_vereador: 'Votos'}, inplace=True)
 
-    # Ordenar os bairros pela quantidade de votos
-    df_vereador_bairro = df_vereador_bairro.sort_values(by='Votos', ascending=False)
+    df_vereador_bairro = df_vereador_bairro.sort_values(
+        by='Votos', ascending=False)
 
-    # Criar gráfico de barras usando Plotly
     fig = px.bar(df_vereador_bairro, y='NM_BAIRRO', x='Votos', title=f'Quantidade de Votos por Bairro para {selected_vereador}',
                  labels={'NM_BAIRRO': 'Bairro', 'Votos': 'Quantidade de Votos'})
 
-    # Mostrar gráfico no Streamlit
     st.plotly_chart(fig, use_container_width=True)
-    
-# trocar rpor um bar_chart

@@ -66,7 +66,7 @@ selected_local = st.sidebar.selectbox(
     options=local_options
 )
 selected_bairro = st.sidebar.selectbox(
-    "Escolha o bairro da Votação",
+    "Escolha o Bairro da Votação",
     options=bairro_options
 )
 
@@ -109,9 +109,8 @@ def safe_int_conversion(value):
 # Adiciona marcadores para o local selecionado
 for idx, row in filtered_df.iterrows():
     popup_content = f"""
-    <strong>Número:</strong> {row['NR_LOCAL_V']}<br>
+    <strong>Seção:</strong> {row['NR_LOCAL_V']}<br>
     <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
-    <strong>Tipo:</strong> {row['DS_TIPO_LO']}<br>
     <strong>Total Eleitores:</strong> {row['Quantidade_Eleitores']}<br>
     <strong>Total Votos:</strong> {safe_int_conversion(row['QT_VOTOS'])}
     """
@@ -130,7 +129,7 @@ if clicked_object:
     st.write(clicked_object)
     # Buscar o número do local de votação a partir do objeto clicado
     print('clicked_object', clicked_object)
-    match = re.search(r'Número: (\d+)', clicked_object)
+    match = re.search(r'Seção: (\d+)', clicked_object)
     print('match: ', match)
     if match:
         nr_local_v = int(match.group(1))

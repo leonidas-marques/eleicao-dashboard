@@ -83,8 +83,8 @@ else:
         (df1_grouped['NM_BAIRRO'] == selected_bairro)
     ]
 
-st.write('Dados:')
-st.write(filtered_df)
+# st.write('Dados:')
+# st.write(filtered_df)
 
 # Criação do mapa com folium
 st.title("Mapa de Locais de Votação")

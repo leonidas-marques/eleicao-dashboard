@@ -36,30 +36,37 @@ df1.rename(columns={
     'QT_ELEITOR': 'Quantidade_Eleitores'
 }, inplace=True)
 
-# Agrupar votos por local de votação em df2
-df2_grouped = df2.groupby('NR_LOCAL_VOTACAO', as_index=False).agg({
-    'QT_VOTOS': 'sum'
-})
+# Agrupar votos por local de votação e pivotar em df2
+df2_pivot = df2.pivot_table(index='NR_LOCAL_VOTACAO', columns='NM_VOTAVEL',
+                            values='QT_VOTOS', aggfunc='sum', fill_value=0)
 
-# Unir df1 com df2_grouped
-df1 = df1.merge(df2_grouped, left_on='NR_LOCAL_V',
+# Unir df1 com df2_pivot
+df1 = df1.merge(df2_pivot, left_on='NR_LOCAL_V',
                 right_on='NR_LOCAL_VOTACAO', how='left')
 
 # Agrupar por localização e somar os eleitores
 df1_grouped = df1.groupby(['Longitude', 'Latitude', 'NM_BAIRRO', 'NM_LOCAL_V', 'NR_LOCAL_V', 'DS_TIPO_LO'], as_index=False).agg({
     'Quantidade_Eleitores': 'sum',
-    'QT_VOTOS': 'mean'
+    # Agregar votos dos vereadores por média
+    **{col: 'mean' for col in df2_pivot.columns}
 })
 
 # Sidebar para seleção de local
 st.sidebar.header("Selecione um Local de Votação")
 
-# Adicionar uma opção para "Todos os Locais"
+vereador_options = ['Todos os Vereadores'] + \
+    df2['NM_VOTAVEL'].unique().tolist()
+
 local_options = ['Todos os Locais'] + \
     df1_grouped['NM_LOCAL_V'].unique().tolist()
 
 bairro_options = ['Todos os Bairros'] + \
     df1_grouped['NM_BAIRRO'].unique().tolist()
+
+selected_vereador = st.sidebar.selectbox(
+    "Escolha o Vereador",
+    options=vereador_options
+)
 
 selected_local = st.sidebar.selectbox(
     "Escolha o Local de Votação",
@@ -108,12 +115,19 @@ def safe_int_conversion(value):
 
 # Adiciona marcadores para o local selecionado
 for idx, row in filtered_df.iterrows():
-    popup_content = f"""
-    <strong>Seção:</strong> {row['NR_LOCAL_V']}<br>
-    <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
-    <strong>Total Eleitores:</strong> {row['Quantidade_Eleitores']}<br>
-    <strong>Total Votos:</strong> {safe_int_conversion(row['QT_VOTOS'])}
-    """
+    if (selected_vereador != 'Todos os Vereadores'):
+        popup_content = f"""
+        <strong>Seção:</strong> {row['NR_LOCAL_V']}<br>
+        <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
+        <strong>{selected_vereador} Votos:</strong> {row[f'{selected_vereador}']}<br>
+        """
+    else:
+        popup_content = f"""
+        <strong>Seção:</strong> {row['NR_LOCAL_V']}<br>
+        <strong>Local:</strong> {row['NM_LOCAL_V']}<br>
+        <strong>Total Eleitores:</strong> {row['Quantidade_Eleitores']}<br>
+        <strong>Total Votos:</strong> {safe_int_conversion(row.iloc[6:].sum())}  <!-- Soma dos votos -->
+        """
     folium.Marker(
         location=[row['Latitude'], row['Longitude']],
         popup=folium.Popup(popup_content, max_width=300),
@@ -128,12 +142,9 @@ st.title("Detalhes:")
 if clicked_object:
     st.write(clicked_object)
     # Buscar o número do local de votação a partir do objeto clicado
-    print('clicked_object', clicked_object)
     match = re.search(r'Seção: (\d+)', clicked_object)
-    print('match: ', match)
     if match:
         nr_local_v = int(match.group(1))
-        print(f'O número do local de votação é: {nr_local_v}')
         # Filtrar o DataFrame df2 para o local de votação desejado
         df_vereadores = df2[df2['NR_LOCAL_VOTACAO'] == nr_local_v]
 
@@ -161,7 +172,7 @@ if clicked_object:
                      use_container_width=True, hide_index=True)
 
     else:
-        print('Número do local de votação não encontrado.')
+        st.write('Número do local de votação não encontrado.')
 
 else:
     st.write('Selecione um Local para mais detalhes.')

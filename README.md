@@ -1,18 +1,18 @@
-# :earth_americas: GDP dashboard template
+# :bar_chart: Eleições Piripiri Dashboard 
 
-A simple Streamlit app showing the GDP of different countries in the world.
+Um aplicativo em Streamlit que exibe os dados das eleições de piripiri
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gdp-dashboard-template.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://eleicao-dashboard.streamlit.app/)
 
-### How to run it on your own machine
+### Como executá-lo na sua própria máquina
 
-1. Install the requirements
+1. Instale as dependências
 
    ```
    $ pip install -r requirements.txt
    ```
 
-2. Run the app
+2. Execute o aplicativo
 
    ```
    $ streamlit run streamlit_app.py
